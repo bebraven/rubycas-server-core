@@ -2,7 +2,7 @@ require "rubycas-server-core/error"
 
 module RubyCAS::Server::Core::Tickets
   module Validations
-    include R18n::Helpers
+    # include R18n::Helpers
     include RubyCAS::Server::Core::Error
 
     # Validate login ticket
@@ -14,22 +14,22 @@ module RubyCAS::Server::Core::Tickets
       error = nil
 
       if ticket.nil?
-        error = t.error.missing_login_ticket
+        error = error.missing_login_ticket
         $LOG.warn error
       elsif lt = LoginTicket.find_by_ticket(ticket)
         if lt.consumed?
-          error = t.error.login_ticket_already_used
+          error = error.login_ticket_already_used
           $LOG.warn "Login ticket '#{ticket}' already consumed!"
         elsif not lt.expired?(RubyCAS::Server::Core::Settings.maximum_unused_login_ticket_lifetime)
           $LOG.info "Login ticket '#{ticket}' successfully validated"
           lt.consume!
           success = true
         elsif lt.expired?(RubyCAS::Server::Core::Settings.maximum_unused_login_ticket_lifetime)
-          error = t.error.login_timeout
+          error = error.login_timeout
           $LOG.warn "Expired login ticket '#{ticket}'"
         end
       else
-        error = t.error.invalid_login_ticket
+        error = error.invalid_login_ticket
         $LOG.warn "Invalid login ticket '#{ticket}'"
       end
 
