@@ -106,12 +106,57 @@ module RubyCAS::Server::Core::Tickets
       raise NotImplementedError
     end
 
-    def send_logout_notification_for_service_ticket(ticket)
-      raise NotImplementedError
+    def send_logout_notification_for_service_ticket(st)
+      uri = URI.parse(st.service)
+      uri.path = '/' if uri.path.empty?
+      time = Time.now
+      rand = String.random
+      path = uri.path
+      req = Net::HTTP::Post.new(path)
+      req.set_form_data('logoutRequest' => %{<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="#{rand}" Version="2.0" IssueInstant="#{time.rfc2822}">
+  <saml:NameID></saml:NameID>
+  <samlp:SessionIndex>#{st.ticket}</samlp:SessionIndex>
+  </samlp:LogoutRequest>})
+  
+      begin
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = true if uri.scheme =='https'
+        
+        http.start do |conn|
+          response = conn.request(req)
+          if response.kind_of? Net::HTTPSuccess
+            $LOG.info "Logout notification successfully posted to #{st.service.inspect}."
+            return true
+          else
+            $LOG.error "Service #{st.service.inspect} responed to logout notification with code '#{response.code}'!"
+            return false
+          end
+        end
+      rescue Exception => e
+        $LOG.error "Failed to send logout notification to service #{st.service.inspect} due to #{e}"
+        return false
+      end
     end
 
-    def service_uri_with_ticket(ticket)
-      raise NotImplementedError
+    def service_uri_with_ticket(service, st)
+      raise ArgumentError, "Second argument must be a ServiceTicket!" unless st.kind_of? CASServer::Model::ServiceTicket
+
+      # This will choke with a URI::InvalidURIError if service URI is not properly URI-escaped...
+      # This exception is handled further upstream (i.e. in the controller).
+      service_uri = URI.parse(service)
+
+      if service.include? "?"
+        if service_uri.query.empty?
+          query_separator = ""
+        else
+          query_separator = "&"
+        end
+      else
+        query_separator = "?"
+      end
+
+      service_with_ticket = service + query_separator + "ticket=" + st.ticket
+      service_with_ticket
     end
 
     def generate_ticket_granting_ticket(username, extra_attributes = {})
