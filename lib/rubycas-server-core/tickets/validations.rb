@@ -106,5 +106,24 @@ module RubyCAS::Server::Core::Tickets
       raise NotImplementedError
     end
 
+    def send_logout_notification_for_service_ticket(ticket)
+      raise NotImplementedError
+    end
+
+    def service_uri_with_ticket(ticket)
+      raise NotImplementedError
+    end
+
+    def generate_ticket_granting_ticket(username, extra_attributes = {})
+      raise NotImplementedError
+    end
+
+    def generate_proxy_ticket(target_service, pgt)
+      raise NotImplementedError
+    end
+
+    def generate_proxy_granting_ticket(pgt_url, st)
+      raise NotImplementedError
+    end
   end
 end
