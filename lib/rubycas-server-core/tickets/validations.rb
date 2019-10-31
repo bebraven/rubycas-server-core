@@ -14,22 +14,22 @@ module RubyCAS::Server::Core::Tickets
       error = nil
 
       if ticket.nil?
-        error = error.missing_login_ticket
+        error = "Missing login ticket"
         $LOG.warn error
       elsif lt = LoginTicket.find_by_ticket(ticket)
         if lt.consumed?
-          error = error.login_ticket_already_used
+          error = "The login ticket you provided has already been used up. Please try logging in again."
           $LOG.warn "Login ticket '#{ticket}' already consumed!"
         elsif not lt.expired?(RubyCAS::Server::Core::Settings.maximum_unused_login_ticket_lifetime)
           $LOG.info "Login ticket '#{ticket}' successfully validated"
           lt.consume!
           success = true
         elsif lt.expired?(RubyCAS::Server::Core::Settings.maximum_unused_login_ticket_lifetime)
-          error = error.login_timeout
+          error = "You took too long to enter your credentials. Please try again."
           $LOG.warn "Expired login ticket '#{ticket}'"
         end
       else
-        error = error.invalid_login_ticket
+        error = "The login ticket you provided is invalid. There may be a problem with the authentication system."
         $LOG.warn "Invalid login ticket '#{ticket}'"
       end
 
