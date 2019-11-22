@@ -99,7 +99,18 @@ module RubyCAS::Server::Core::Tickets
     end
 
     def validate_proxy_ticket(service, ticket)
-      raise NotImplementedError
+      pt, error = validate_service_ticket(service, ticket, true)
+  
+      if pt.kind_of?(RubyCAS::Server::Core::Tickets::ProxyTicket) && !error
+        if not pt.granted_by_pgt
+          error = Error.new(:INTERNAL_ERROR, "Proxy ticket '#{pt}' belonging to user '#{pt.username}' is not associated with a proxy granting ticket.")
+        elsif not pt.granted_by_pgt.service_ticket
+          error = Error.new(:INTERNAL_ERROR, "Proxy granting ticket '#{pt.granted_by_pgt}'"+
+            " (associated with proxy ticket '#{pt}' and belonging to user '#{pt.username}' is not associated with a service ticket.")
+        end
+      end
+  
+      [pt, error]
     end
 
     def validate_proxy_granting_ticket(ticket)
@@ -110,7 +121,7 @@ module RubyCAS::Server::Core::Tickets
       uri = URI.parse(st.service)
       uri.path = '/' if uri.path.empty?
       time = Time.now
-      rand = String.random
+      rand = (0...50).map { ('a'..'z').to_a[rand(26)] }.join
       path = uri.path
       req = Net::HTTP::Post.new(path)
       req.set_form_data('logoutRequest' => %{<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="#{rand}" Version="2.0" IssueInstant="#{time.rfc2822}">
@@ -128,7 +139,7 @@ module RubyCAS::Server::Core::Tickets
             $LOG.info "Logout notification successfully posted to #{st.service.inspect}."
             return true
           else
-            $LOG.error "Service #{st.service.inspect} responed to logout notification with code '#{response.code}'!"
+            $LOG.error "Service #{st.service.inspect} responded to logout notification with code '#{response.code}'!"
             return false
           end
         end
@@ -139,7 +150,7 @@ module RubyCAS::Server::Core::Tickets
     end
 
     def service_uri_with_ticket(service, st)
-      raise ArgumentError, "Second argument must be a ServiceTicket!" unless st.kind_of? CASServer::Model::ServiceTicket
+      raise ArgumentError, "Second argument must be a ServiceTicket!" unless st.kind_of? RubyCAS::Server::Core::Tickets::ServiceTicket
 
       # This will choke with a URI::InvalidURIError if service URI is not properly URI-escaped...
       # This exception is handled further upstream (i.e. in the controller).
@@ -157,18 +168,6 @@ module RubyCAS::Server::Core::Tickets
 
       service_with_ticket = service + query_separator + "ticket=" + st.ticket
       service_with_ticket
-    end
-
-    def generate_ticket_granting_ticket(username, extra_attributes = {})
-      raise NotImplementedError
-    end
-
-    def generate_proxy_ticket(target_service, pgt)
-      raise NotImplementedError
-    end
-
-    def generate_proxy_granting_ticket(pgt_url, st)
-      raise NotImplementedError
     end
   end
 end
