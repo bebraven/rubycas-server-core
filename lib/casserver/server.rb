@@ -201,35 +201,22 @@ module CASServer
         exit 1
       end
 
-      begin
-        # attempt to instantiate the authenticator
-        config[:authenticator] = [config[:authenticator]] unless config[:authenticator].instance_of? Array
-        config[:authenticator].each { |authenticator| auth << authenticator[:class].constantize}
-      rescue NameError
-        if config[:authenticator].instance_of? Array
-          config[:authenticator].each do |authenticator|
-            if !authenticator[:source].nil?
-              # config.yml explicitly names source file
-              require authenticator[:source]
-            else
-              # the authenticator class hasn't yet been loaded, so lets try to load it from the casserver/authenticators directory
-              auth_rb = authenticator[:class].underscore.gsub('cas_server/', '')
-              require 'casserver/'+auth_rb
-            end
-            auth << authenticator[:class].constantize
-          end
-        else
-          if config[:authenticator][:source]
+      config[:authenticator] = [config[:authenticator]] unless config[:authenticator].instance_of? Array
+      config[:authenticator].each do |authenticator|
+        begin
+          # attempt to instantiate the authenticator
+          auth << authenticator[:class].constantize
+        rescue NameError
+          if authenticator[:source]
             # config.yml explicitly names source file
-            require config[:authenticator][:source]
+            require authenticator[:source]
           else
             # the authenticator class hasn't yet been loaded, so lets try to load it from the casserver/authenticators directory
-            auth_rb = config[:authenticator][:class].underscore.gsub('cas_server/', '')
+            auth_rb = authenticator[:class].underscore.gsub('cas_server/', '')
             require 'casserver/'+auth_rb
           end
 
-          auth << config[:authenticator][:class].constantize
-          config[:authenticator] = [config[:authenticator]]
+          auth << authenticator[:class].constantize
         end
       end
 
@@ -319,6 +306,12 @@ module CASServer
 
       # optional params
       @service = clean_service_url(params['service'])
+      @from = clean_service_url(params['from'])
+      @return_url = if @from.blank?
+                      @service
+                    else
+                      @service + @from
+                    end
       @renew = params['renew']
       @gateway = params['gateway'] == 'true' || params['gateway'] == '1'
 
@@ -349,7 +342,7 @@ module CASServer
           elsif tgt && !tgt_error
             $LOG.debug("Valid ticket granting ticket detected.")
             st = generate_service_ticket(@service, tgt.username, tgt)
-            service_with_ticket = service_uri_with_ticket(@service, st)
+            service_with_ticket = service_uri_with_ticket(@return_url, st)
             $LOG.info("User '#{tgt.username}' authenticated based on ticket granting cookie. Redirecting to service '#{@service}'.")
             redirect service_with_ticket, 303 # response code 303 means "See Other" (see Appendix B in CAS Protocol spec)
           elsif @gateway
@@ -411,6 +404,12 @@ module CASServer
 
       # 2.2.1 (optional)
       @service = clean_service_url(params['service'])
+      @from = clean_service_url(params['from'])
+      @return_url = if @from.blank?
+                      @service
+                    else
+                      @service + @from
+                    end
 
       # 2.2.2 (required)
       @username = params['username'].downcase # this ensures we always use lowercase for ease of case comparison throughout the system
@@ -485,7 +484,7 @@ module CASServer
             @st = generate_service_ticket(@service, @username, tgt)
 
             begin
-              service_with_ticket = service_uri_with_ticket(@service, @st)
+              service_with_ticket = service_uri_with_ticket(@return_url, @st)
 
               $LOG.info("Redirecting authenticated user '#{@username}' at '#{@st.client_hostname}' to service '#{@service}'")
               redirect service_with_ticket, 303 # response code 303 means "See Other" (see Appendix B in CAS Protocol spec)

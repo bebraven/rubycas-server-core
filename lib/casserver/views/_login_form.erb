@@ -18,6 +18,7 @@
                size="32" tabindex="1" accesskey="u" /></div>
         <div><label id="password-label" for="password">
           <%= t.label.password %>
+<<<<<<< HEAD
         </label><br />
         <input class="form-control" type="password" id="password" name="password"
                size="32" tabindex="2" accesskey="p" autocomplete="off" /></div>
@@ -27,6 +28,27 @@
       <input type="hidden" id="service" name="service" value="<%= escape_html @service %>" />
       <div><input class="button-primary" name="commit" type="submit" value="Log in" /></div>
       <div id="infoline">
+=======
+        </label>
+      </td>
+      <td id="password-container">
+        <input type="password" id="password" name="password"
+               size="32" tabindex="2" accesskey="p" autocomplete="off" />
+      </td>
+    </tr>
+    <tr>
+      <td />
+      <td id="submit-container">
+        <input type="hidden" id="lt" name="lt" value="<%= escape_html @lt %>" />
+        <input type="hidden" id="service" name="service" value="<%= escape_html @service %>" />
+        <input type="hidden" id="from" name="from" value="<%= escape_html @from %>" />
+        <input type="submit" class="button" accesskey="l" value="<%= t.button.login %>"
+               tabindex="4" id="login-submit" />
+      </td>
+    </tr>
+    <tr>
+      <td colspan="2" id="infoline">
+>>>>>>> 92610fa182f4fc533bb862e5525b76e41820cb9b
         <%= @infoline %>
       </div>
 </form>
