@@ -63,11 +63,62 @@ module RubyCAS
           end
 
           def generate_proxy_ticket(target_service, pgt, client)
-            raise NotImplementedError
+            # 3.2 (proxy ticket)
+            pt = ProxyTicket.new
+            pt.ticket = "PT-" + String.random
+            pt.service = target_service
+            pt.username = pgt.service_ticket.username
+            pt.granted_by_pgt_id = pgt.id
+            pt.granted_by_tgt_id = pgt.service_ticket.granted_by_tgt_id
+            pt.client_hostname = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+            pt.save!
+            $LOG.debug("Generated proxy ticket '#{pt.ticket}' for target service '#{pt.service}'" +
+              " for user '#{pt.username}' at '#{pt.client_hostname}' using proxy-granting" +
+              " ticket '#{pgt.ticket}'")
+            pt
           end
 
           def generate_proxy_granting_ticket(pgt_url, st, client)
-            raise NotImplementedError
+            uri = URI.parse(pgt_url)
+            https = Net::HTTP.new(uri.host,uri.port)
+            https.use_ssl = true
+        
+            # Here's what's going on here:
+            #
+            #   1. We generate a ProxyGrantingTicket (but don't store it in the database just yet)
+            #   2. Deposit the PGT and it's associated IOU at the proxy callback URL.
+            #   3. If the proxy callback URL responds with HTTP code 200, store the PGT and return it;
+            #      otherwise don't save it and return nothing.
+            #
+            https.start do |conn|
+              path = uri.path.empty? ? '/' : uri.path
+              path += '?' + uri.query unless (uri.query.nil? || uri.query.empty?)
+              
+              pgt = ProxyGrantingTicket.new
+              pgt.ticket = "PGT-" + String.random(60)
+              pgt.iou = "PGTIOU-" + String.random(57)
+              pgt.service_ticket_id = st.id
+              pgt.client_hostname = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+        
+              # FIXME: The CAS protocol spec says to use 'pgt' as the parameter, but in practice
+              #         the JA-SIG and Yale server implementations use pgtId. We'll go with the
+              #         in-practice standard.
+              path += (uri.query.nil? || uri.query.empty? ? '?' : '&') + "pgtId=#{pgt.ticket}&pgtIou=#{pgt.iou}"
+        
+              response = conn.request_get(path)
+              # TODO: follow redirects... 2.5.4 says that redirects MAY be followed
+              # NOTE: The following response codes are valid according to the JA-SIG implementation even without following redirects
+              
+              if %w(200 202 301 302 304).include?(response.code)
+                # 3.4 (proxy-granting ticket IOU)
+                pgt.save!
+                $LOG.debug "PGT generated for pgt_url '#{pgt_url}': #{pgt.inspect}"
+                pgt
+              else
+                $LOG.warn "PGT callback server responded with a bad result code '#{response.code}'. PGT will not be stored."
+                nil
+              end
+            end
           end
         end
       end
