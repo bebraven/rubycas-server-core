@@ -19,7 +19,7 @@ module RubyCAS::Server::Core
     def clean_service_url(dirty_url)
       return '' if dirty_url.blank?
       parsed = URI.parse(dirty_url)
-      query = parsed.query.to_s # we really only care about the query portion of the url
+      query = parsed.query.to_s.dup # we really only care about the query portion of the url
       query.gsub!(PARAM_REGEX, '')
       query.gsub!(/[\/\?&]$/, '')
       query.gsub!(/&&/, '&')
